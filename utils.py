@@ -421,16 +421,10 @@ class DynamicWeb:
                 try:
                     # Get element type
                     element_type = await element.evaluate('el => el.tagName.toLowerCase()')
-                    
-                    if element_type == 'select':
-                        # Handle dropdown selection
-                        await self.handle_dropdown_selection(page, element)
-                        continue
-                        
-                    # Get field attributes
                     field_name = await element.get_attribute('name')
                     field_id = await element.get_attribute('id')
                     placeholder = await element.get_attribute('placeholder')
+                    field_type = await element.get_attribute('type')
                     
                     # Map the field to a value
                     field_type, value = self.field_mapper.map_field(field_name, field_id, placeholder)
@@ -438,12 +432,54 @@ class DynamicWeb:
                     if field_type and value:
                         # Fill the field
                         await element.fill(value)
-                        print(f"[✓] Filled {field_type} field with value: {value}")
-                        
-                        # Handle special cases
-                        if field_type == 'message' and element_type == 'textarea':
-                            await element.fill(value)
-                            print(f"[✓] Filled textarea with message: {value}")
+                        print(f"[✓] Filled {field_type} field with mapped value: {value}")
+                        continue
+                    
+                    # If field mapper didn't find a match, use agent system
+                    print(f"[🤖] Using agent to analyze field: {field_name or field_id or placeholder}")
+                    
+                    # Get field context for agent
+                    field_context = await element.evaluate("""
+                        (el) => {
+                            const context = {
+                                type: el.type,
+                                name: el.name,
+                                id: el.id,
+                                placeholder: el.placeholder,
+                                label: el.labels ? Array.from(el.labels).map(l => l.textContent).join(' ') : '',
+                                ariaLabel: el.getAttribute('aria-label'),
+                                role: el.getAttribute('role'),
+                                class: el.className,
+                                parentText: el.parentElement ? el.parentElement.textContent : '',
+                                siblingText: Array.from(el.parentElement?.children || [])
+                                    .filter(child => child !== el)
+                                    .map(child => child.textContent)
+                                    .join(' ')
+                            };
+                            return context;
+                        }
+                    """)
+                    
+                    # Use agent to analyze field and get appropriate value
+                    field_analysis = await self.form_analyzer.analyze_form_field(field_context)
+                    
+                    if field_analysis and 'value' in field_analysis:
+                        # Fill the field with agent's suggested value
+                        await element.fill(field_analysis['value'])
+                        print(f"[✓] Filled field with agent-suggested value: {field_analysis['value']}")
+                        print(f"[📝] Agent reasoning: {field_analysis.get('reasoning', 'No reasoning provided')}")
+                    else:
+                        print(f"[!] Agent could not determine value for field: {field_name or field_id or placeholder}")
+                    
+                    # Handle special cases
+                    if element_type == 'select':
+                        await self.handle_dropdown_selection(page, element)
+                    elif element_type == 'textarea':
+                        # For textareas, ensure we have a proper message
+                        if not value:
+                            value = "I am interested in your services and would like to know more. Please contact me at your earliest convenience."
+                        await element.fill(value)
+                        print(f"[✓] Filled textarea with message: {value}")
                     
                 except Exception as e:
                     print(f"[!] Error filling field {field_name or field_id}: {str(e)}")
@@ -537,165 +573,88 @@ class DynamicWeb:
         try:
             print("[🔍] Searching for form elements...")
             
-            # Strategy 1: Traditional form elements
-            form_elements = await page.query_selector_all('form')
-            if form_elements:
-                print("[✓] Found traditional form elements")
-                return True
-
-            # Strategy 2: Common form container patterns
-            container_selectors = [
-                # WordPress specific
-                'div[data-wp-interactive*="form"]',
-                'div[data-wp-interactive*="contact"]',
-                'div[data-wp-interactive*="quote"]',
-                'div[data-wp-interactive*="request"]',
-                'div[data-wp-interactive*="inquiry"]',
-                'div[data-wp-interactive*="message"]',
-                'div[data-wp-interactive*="submit"]',
-                'div[data-wp-interactive*="send"]',
-                # Common form containers
-                'div[class*="form"]',
-                'div[class*="contact"]',
-                'div[class*="quote"]',
-                'div[class*="request"]',
-                'div[class*="inquiry"]',
-                'div[class*="message"]',
-                # Framework specific
-                'div[class*="wpcf7"]',  # WordPress Contact Form 7
-                'div[class*="gform"]',  # Gravity Forms
-                'div[class*="ninja-forms"]',  # Ninja Forms
-                'div[class*="elementor-form"]',  # Elementor Forms
-                'div[class*="contact-form"]',
-                'div[class*="quote-form"]',
-                'div[class*="request-form"]',
-                'div[class*="inquiry-form"]',
-                'div[class*="message-form"]',
-                # Generic form containers
-                'div[role="form"]',
-                'div[data-form]',
-                'div[data-wf-form]',  # Webflow forms
-                'div[data-form-type]',
-                # Modal and popup forms
-                'div[class*="modal"]',
-                'div[class*="popup"]',
-                'div[class*="lightbox"]',
-                'div[class*="dialog"]'
-            ]
-
-            for selector in container_selectors:
-                elements = await page.query_selector_all(selector)
-                if elements:
-                    for element in elements:
-                        # Skip if it's a lightbox or image viewer
-                        is_lightbox = await element.evaluate("""
-                            (el) => {
-                                return el.classList.contains('wp-lightbox-overlay') ||
-                                       el.classList.contains('lightbox') ||
-                                       el.getAttribute('data-wp-interactive')?.includes('image') ||
-                                       el.querySelector('img[data-wp-bind--src]') !== null;
-                            }
-                        """)
-                        
-                        if is_lightbox:
-                            continue
-
-                        # Check for input fields within the container
-                        inputs = await element.query_selector_all('''
-                            input:not([type="submit"]):not([type="hidden"]),
-                            select,
-                            textarea,
-                            [contenteditable="true"],
-                            [role="textbox"],
-                            [role="combobox"],
-                            [role="listbox"]
-                        ''')
-                        
-                        if inputs:
-                            # Verify it's actually a form by checking for submit elements
-                            has_submit = await element.query_selector('''
-                                button[type="submit"],
-                                input[type="submit"],
-                                button:not([type]),
-                                [role="button"]
-                            ''')
-                            
-                            if has_submit:
-                                print(f"[✓] Found form container with input fields: {selector}")
-                                return True
-
-            # Strategy 3: Look for form-like structures in any div
-            all_divs = await page.query_selector_all('div')
-            for div in all_divs:
-                try:
-                    # Skip if it's a lightbox or image viewer
-                    is_lightbox = await div.evaluate("""
-                        (el) => {
-                            return el.classList.contains('wp-lightbox-overlay') ||
-                                   el.classList.contains('lightbox') ||
-                                   el.getAttribute('data-wp-interactive')?.includes('image') ||
-                                   el.querySelector('img[data-wp-bind--src]') !== null;
-                        }
-                    """)
-                    
-                    if is_lightbox:
-                        continue
-
-                    # Get all interactive elements in this div
-                    interactive_elements = await div.query_selector_all('''
-                        input:not([type="submit"]):not([type="hidden"]),
-                        select,
-                        textarea,
-                        [contenteditable="true"],
-                        [role="textbox"],
-                        [role="combobox"],
-                        [role="listbox"],
-                        button,
-                        [role="button"],
-                        input[type="submit"]
-                    ''')
-                    
-                    if interactive_elements:
-                        # Check if it's a form-like structure
-                        is_form_like = await div.evaluate("""
-                            (el) => {
-                                const inputs = el.querySelectorAll('input:not([type="submit"]):not([type="hidden"]), select, textarea, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"]');
-                                const buttons = el.querySelectorAll('button, [type="submit"], [role="button"]');
-                                return inputs.length > 0 && buttons.length > 0;
-                            }
-                        """)
-                        
-                        if is_form_like:
-                            print("[✓] Found form-like structure in div")
-                            return True
-                except Exception:
-                    continue
-
-            # Strategy 4: Check for iframe forms
-            iframes = await page.query_selector_all('iframe')
-            for iframe in iframes:
-                try:
-                    frame = await iframe.content_frame()
-                    if frame:
-                        form_elements = await frame.query_selector_all('form')
-                        if form_elements:
-                            print("[✓] Found form in iframe")
-                            return True
-                except Exception:
-                    continue
-
-            # Strategy 5: Check for dynamic form loading
+            # Strategy 1: Quick check for traditional form elements
             try:
-                # Wait for potential dynamic form loading
-                await page.wait_for_selector('''
-                    form,
-                    div[class*="form"],
-                    div[class*="contact"],
-                    div[class*="quote"],
-                    div[data-wp-interactive*="form"],
-                    div[data-wp-interactive*="contact"],
-                    div[data-wp-interactive*="quote"]
-                ''', timeout=5000)
+                form_elements = await page.query_selector_all('form')
+                if form_elements:
+                    print("[✓] Found traditional form elements")
+                    return True
+            except Exception:
+                pass
+
+            # Strategy 2: Common form container patterns with timeout
+            try:
+                # Use Promise.race to add timeout to query_selector_all
+                has_form = await page.evaluate("""
+                    async () => {
+                        const timeout = new Promise((_, reject) => 
+                            setTimeout(() => reject('timeout'), 3000)
+                        );
+                        
+                        const checkForm = async () => {
+                            const selectors = [
+                                'div[data-wp-interactive*="form"]',
+                                'div[data-wp-interactive*="contact"]',
+                                'div[class*="form"]',
+                                'div[class*="contact"]',
+                                'div[class*="wpcf7"]',
+                                'div[class*="gform"]',
+                                'div[role="form"]',
+                                'div[data-form]'
+                            ];
+                            
+                            for (const selector of selectors) {
+                                const elements = document.querySelectorAll(selector);
+                                for (const el of elements) {
+                                    // Skip lightboxes
+                                    if (el.classList.contains('wp-lightbox-overlay') ||
+                                        el.classList.contains('lightbox') ||
+                                        el.getAttribute('data-wp-interactive')?.includes('image')) {
+                                        continue;
+                                    }
+                                    
+                                    // Check for form elements
+                                    const inputs = el.querySelectorAll('input:not([type="submit"]):not([type="hidden"]), select, textarea');
+                                    const buttons = el.querySelectorAll('button, [type="submit"], [role="button"]');
+                                    
+                                    if (inputs.length > 0 && buttons.length > 0) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            return false;
+                        };
+                        
+                        return await Promise.race([checkForm(), timeout]);
+                    }
+                """)
+                
+                if has_form:
+                    print("[✓] Found form container")
+                    return True
+            except Exception as e:
+                if str(e) != 'timeout':
+                    print(f"[!] Error in form container check: {str(e)}")
+
+            # Strategy 3: Quick check for iframe forms
+            try:
+                iframes = await page.query_selector_all('iframe')
+                for iframe in iframes:
+                    try:
+                        frame = await iframe.content_frame()
+                        if frame:
+                            form_elements = await frame.query_selector_all('form')
+                            if form_elements:
+                                print("[✓] Found form in iframe")
+                                return True
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
+            # Strategy 4: Final check for dynamic forms with short timeout
+            try:
+                await page.wait_for_selector('form', timeout=2000)
                 print("[✓] Found dynamically loaded form")
                 return True
             except Exception:

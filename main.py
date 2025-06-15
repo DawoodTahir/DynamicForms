@@ -15,7 +15,7 @@ async def run():
         pipe=DynamicWeb()
         urls=pipe.ingestion(file)
         # for url in urls:
-        url="https://reliableserviceroofing.com/"
+        url="http://www.getsuperiorcleaning.com/?utm_source=google&utm_medium=organic&utm_campaign=gmb"
         try:
                 print(f"[🌐] Navigating to {url}")
                 await page.goto(url)

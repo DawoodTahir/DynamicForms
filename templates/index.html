@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Web Form Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            background: #f4f4f4;
+        }
+        h2 {
+            color: #444;
+        }
+        form {
+            margin-bottom: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        input[type="text"], input[type="file"] {
+            padding: 10px;
+            margin-bottom: 10px;
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #logs {
+            background: #222;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 10px;
+            height: 300px;
+            overflow-y: scroll;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h2>🧠 Form Bot Dashboard</h2>
+
+    <!-- File Upload Form -->
+    <form id="upload-form">
+        <label>Select file to upload:</label>
+        <input type="file" id="file-input" name="file">
+        <button type="submit">Upload File</button>
+    </form>
+
+    <!-- URL Process Form -->
+    <form id="process-form">
+        <label>Enter URL to process:</label>
+        <input type="text" id="url-input" placeholder="https://example.com">
+        <button type="submit">Process URL</button>
+    </form>
+
+    <!-- Logs -->
+    <h3>📋 Logs:</h3>
+    <div id="logs"></div>
+
+    <script>
+        const logBox = document.getElementById('logs');
+
+        function log(message) {
+            logBox.innerHTML += `[${new Date().toLocaleTimeString()}] ${message}<br>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+
+            if (!file) return log("⚠️ No file selected.");
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            log("📤 Uploading file...");
+            const res = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await res.json();
+            log("📁 Upload Response: " + JSON.stringify(result));
+        });
+
+        document.getElementById('process-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const url = document.getElementById('url-input').value;
+
+            if (!url) return log("⚠️ No URL provided.");
+
+            log("🌐 Processing URL: " + url);
+
+            try {
+                const res = await fetch('/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                const result = await res.json();
+                log("✅ Process Result: " + JSON.stringify(result));
+            } catch (err) {
+                log("❌ Error: " + err.message);
+            }
+        });
+    </script>
+</body>
+</html>
