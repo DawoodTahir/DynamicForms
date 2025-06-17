@@ -15,9 +15,7 @@ async def run():
         pipe=DynamicWeb()
         urls=pipe.ingestion(file)
         # for url in urls:
-        url="https://steelcityroofers.com/"
-        if not (url.startswith('https://') or url.startswith('http://')):
-                url = f"https://{url}"
+        url="https://www.onecallroofing.com/"
         try:
                 print(f"[🌐] Navigating to {url}")
                 await page.goto(url)
