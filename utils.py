@@ -284,7 +284,7 @@ class FormFieldMapper:
         
         return None, None
 
-    def find_form_button(self, text: str) -> bool:
+    def find_button_pattern(self, text: str) -> bool:
         """Check if the text matches any form button patterns."""
         import re
         text = text.lower()
@@ -399,122 +399,153 @@ class DynamicWeb:
             print(f"[!] Error handling dropdown selection: {str(e)}")
             return False
 
-    async def fill_form(self, page) -> bool:
-        """Fill form fields using the field mapper."""
+    async def fill_form(self, page):
+        """Fill the form with appropriate values and return the parent div."""
         try:
-            print("[📝] Filling form fields...")
-            
-            # Get all form elements
-            form_elements = await page.query_selector_all('''
-                input:not([type="submit"]):not([type="hidden"]),
-                select,
-                textarea
-            ''')
-            
-            if not form_elements:
+            # Get all form fields
+            fields = await page.locator('input, select, textarea').all()
+            if not fields:
                 print("[!] No form fields found")
-                return False
-                
-            print(f"[✓] Found {len(form_elements)} form fields")
-            
-            for element in form_elements:
+                return False, None
+
+            print(f"[*] Found {len(fields)} form fields")
+            all_fields_filled = True
+
+            # Get the parent form div
+            parent_div = None
+            if fields:
+                # Get the first field's parent form
+                first_field = fields[0]
+                parent_form = await first_field.evaluate("""
+                    (el) => {
+                        let current = el;
+                        while (current && current.tagName !== 'FORM') {
+                            current = current.parentElement;
+                        }
+                        if (current) {
+                            // Find the closest div containing the form
+                            let formDiv = current;
+                            while (formDiv && formDiv.tagName !== 'DIV') {
+                                formDiv = formDiv.parentElement;
+                            }
+                            return formDiv ? {
+                                id: formDiv.id,
+                                className: formDiv.className,
+                                textContent: formDiv.textContent,
+                                html: formDiv.outerHTML
+                            } : null;
+                        }
+                        return null;
+                    }
+                """)
+                if parent_form:
+                    parent_div = parent_form
+                    print(f"[✓] Found parent form div: {parent_form.get('className', '')}")
+
+            for element in fields:
                 try:
-                    # Get element type
-                    element_type = await element.evaluate('el => el.tagName.toLowerCase()')
-                    field_name = await element.get_attribute('name')
-                    field_id = await element.get_attribute('id')
-                    placeholder = await element.get_attribute('placeholder')
-                    field_type = await element.get_attribute('type')
-                    
-                    # Map the field to a value
-                    field_type, value = self.field_mapper.map_field(field_name, field_id, placeholder)
-                    
-                    if field_type and value:
-                        # Fill the field
-                        await element.fill(value)
-                        print(f"[✓] Filled {field_type} field with mapped value: {value}")
+                    # Skip if element is not visible
+                    if not await element.is_visible():
                         continue
-                    
-                    # If field mapper didn't find a match, use agent system
-                    print(f"[🤖] Using agent to analyze field: {field_name or field_id or placeholder}")
-                    
-                    # Get field context for agent
+
+                    # Get field context
                     field_context = await element.evaluate("""
                         (el) => {
-                            const context = {
+                            return {
+                                tagName: el.tagName.toLowerCase(),
                                 type: el.type,
                                 name: el.name,
                                 id: el.id,
                                 placeholder: el.placeholder,
-                                label: el.labels ? Array.from(el.labels).map(l => l.textContent).join(' ') : '',
-                                ariaLabel: el.getAttribute('aria-label'),
+                                required: el.required,
                                 role: el.getAttribute('role'),
                                 class: el.className,
+                                ariaLabel: el.getAttribute('aria-label'),
+                                ariaRequired: el.getAttribute('aria-required'),
                                 parentText: el.parentElement ? el.parentElement.textContent : '',
-                                siblingText: Array.from(el.parentElement?.children || [])
-                                    .filter(child => child !== el)
-                                    .map(child => child.textContent)
-                                    .join(' ')
-                            };
-                            return context;
+                                labelText: el.labels ? Array.from(el.labels).map(l => l.textContent).join(' ') : ''
+                            }
                         }
                     """)
-                    
-                    # Use agent to analyze field and get appropriate value
-                    field_analysis = await self.form_analyzer.analyze_form_field(field_context)
-                    
-                    if field_analysis and 'value' in field_analysis:
-                        # Fill the field with agent's suggested value
-                        await element.fill(field_analysis['value'])
-                        print(f"[✓] Filled field with agent-suggested value: {field_analysis['value']}")
-                        print(f"[📝] Agent reasoning: {field_analysis.get('reasoning', 'No reasoning provided')}")
-                    else:
-                        print(f"[!] Agent could not determine value for field: {field_name or field_id or placeholder}")
-                    
-                    # Handle special cases
-                    if element_type == 'select':
-                        await self.handle_dropdown_selection(page, element)
-                    elif element_type == 'textarea':
-                        # For textareas, ensure we have a proper message
-                        if not value:
-                            value = "I am interested in your services and would like to know more. Please contact me at your earliest convenience."
-                        await element.fill(value)
-                        print(f"[✓] Filled textarea with message: {value}")
-                    
+
+                    # Check if field is related to CAPTCHA
+                    captcha_indicators = ['captcha', 'recaptcha', 'hcaptcha', 'turnstile', 'verify', 'verification']
+                    field_text = ' '.join([
+                        str(field_context['name'] or ''),
+                        str(field_context['id'] or ''),
+                        str(field_context['placeholder'] or ''),
+                        str(field_context['ariaLabel'] or ''),
+                        str(field_context['parentText'] or ''),
+                        str(field_context['labelText'] or '')
+                    ]).lower()
+
+                    if any(indicator in field_text for indicator in captcha_indicators):
+                        print(f"[*] Skipping CAPTCHA-related field: {field_text}")
+                        continue
+
                 except Exception as e:
-                    print(f"[!] Error filling field {field_name or field_id}: {str(e)}")
-                    continue
-            
-            print("[✓] Form fields filled successfully")
-            return True
-            
+                    print(f"[!] Error filling field: {str(e)}")
+                    all_fields_filled = False
+
+            return all_fields_filled, parent_div
+
         except Exception as e:
             print(f"[!] Error in fill_form: {str(e)}")
-            return False
+            return False, None
 
     async def check_for_captcha(self, page) -> bool:
-        """Check if there's a CAPTCHA on the page."""
+        """Check if there's a solvable CAPTCHA on the page."""
         try:
+            # Check for solvable CAPTCHA elements
             captcha_selectors = [
                 'iframe[title="reCAPTCHA"]',
-                'iframe[src*="recaptcha"]',
-                '.g-recaptcha',
-                'iframe[title*="recaptcha"]'
+                'iframe[src*="recaptcha/api2/anchor"]',
+                'iframe[src*="recaptcha/api2/bframe"]',
+                'iframe[src*="recaptcha/enterprise/anchor"]',
+                'iframe[src*="recaptcha/enterprise/bframe"]',
+                '.g-recaptcha iframe',
+                'iframe[src*="challenges.cloudflare.com"]',
+                'iframe[src*="hcaptcha"]',
+                '.h-captcha',
+                '[data-sitekey][data-callback]'
             ]
             
             for selector in captcha_selectors:
-                if await page.locator(selector).count() > 0:
-                    print(f"[!] Found CAPTCHA with selector: {selector}")
-                    return True
-                    
-            print("[✓] No CAPTCHA found on page")
+                elements = await page.locator(selector).all()
+                if elements:
+                    # Verify it's an actual CAPTCHA by checking for interactive elements
+                    for element in elements:
+                        try:
+                            # Check if the iframe is visible
+                            if not await element.is_visible():
+                                continue
+                                
+                            frame = await element.content_frame()
+                            if frame:
+                                # Check for interactive CAPTCHA elements
+                                has_checkbox = (
+                                    await frame.locator('div.recaptcha-checkbox, .checkbox-container, .cf-turnstile').count() > 0
+                                )
+                                has_challenge = (
+                                    await frame.locator('div.recaptcha-challenge, .challenge-container, .cf-turnstile-challenge').count() > 0
+                                )
+                                has_audio = await frame.locator('button.rc-button-audio').count() > 0
+                                has_image = await frame.locator('div.rc-imageselect-challenge').count() > 0
+                                
+                                if any([has_checkbox, has_challenge, has_audio, has_image]):
+                                    print(f"[!] Found solvable CAPTCHA: {selector}")
+                                    return True
+                        except Exception:
+                            continue
+            
+            print("[✓] No solvable CAPTCHA found")
             return False
             
         except Exception as e:
             print(f"[!] Error checking for CAPTCHA: {str(e)}")
             return False
 
-    async def find_and_click_form_button(self, page) -> bool:
+    async def find_button(self, page) -> bool:
         """Find and click a button that might lead to a form."""
         try:
             print("[🔍] Looking for form-related buttons...")
@@ -536,11 +567,13 @@ class DynamicWeb:
                         continue
                         
                     # Check if text matches form button patterns
-                    if self.field_mapper.find_form_button(text):
+                    if self.submit_form(text,page):
                         print(f"[✓] Found potential form button: {text}")
                         
                         # Check if element is visible and clickable
                         if await element.is_visible() and await element.is_enabled():
+                            # Scroll the button into view
+                            await element.scroll_into_view_if_needed()
                             # Click the button
                             await element.click()
                             print(f"[✓] Clicked button: {text}")
@@ -573,70 +606,113 @@ class DynamicWeb:
         try:
             print("[🔍] Searching for form elements...")
             
-            # Strategy 1: Quick check for traditional form elements
+            # Strategy 1: Check for actual form structure
             try:
+                # First check for traditional form tags
                 form_elements = await page.query_selector_all('form')
                 if form_elements:
-                    print("[✓] Found traditional form elements")
-                    return True
+                    # Verify these are actual forms with input fields
+                    for form in form_elements:
+                        if await form.is_visible():
+                            inputs = await form.query_selector_all('''
+                            input:not([type="hidden"]),
+                            select,
+                            textarea
+                        ''')
+                        valid_inputs = []
+                        for inp in inputs:
+                            # Ignore honeypot fields like name="website"
+                            name = await inp.get_attribute("name")
+                            if name and "website" in name.lower():
+                                continue
+
+                            style = await inp.evaluate('el => window.getComputedStyle(el)')
+                            if style['display'] != 'none' and style['visibility'] != 'hidden' and style['opacity'] != '0':
+                                valid_inputs.append(inp)
+
+                        if valid_inputs and len(valid_inputs) >= 3:
+                            print("[✓] Found valid form with input fields (adjusted strategy)")
+                            return True
             except Exception:
                 pass
 
-            # Strategy 2: Common form container patterns with timeout
+            # Strategy 2: Check for form-like structures using Readability.js approach
             try:
-                # Use Promise.race to add timeout to query_selector_all
-                has_form = await page.evaluate("""
-                    async () => {
-                        const timeout = new Promise((_, reject) => 
-                            setTimeout(() => reject('timeout'), 3000)
-                        );
-                        
-                        const checkForm = async () => {
-                            const selectors = [
-                                'div[data-wp-interactive*="form"]',
-                                'div[data-wp-interactive*="contact"]',
-                                'div[class*="form"]',
-                                'div[class*="contact"]',
-                                'div[class*="wpcf7"]',
-                                'div[class*="gform"]',
-                                'div[role="form"]',
-                                'div[data-form]'
-                            ];
-                            
-                            for (const selector of selectors) {
-                                const elements = document.querySelectorAll(selector);
-                                for (const el of elements) {
-                                    // Skip lightboxes
-                                    if (el.classList.contains('wp-lightbox-overlay') ||
-                                        el.classList.contains('lightbox') ||
-                                        el.getAttribute('data-wp-interactive')?.includes('image')) {
-                                        continue;
-                                    }
-                                    
-                                    // Check for form elements
-                                    const inputs = el.querySelectorAll('input:not([type="submit"]):not([type="hidden"]), select, textarea');
-                                    const buttons = el.querySelectorAll('button, [type="submit"], [role="button"]');
-                                    
-                                    if (inputs.length > 0 && buttons.length > 0) {
-                                        return true;
-                                    }
-                                }
-                            }
-                            return false;
+                # Get all potential form containers
+                form_containers = await page.evaluate("""
+                    () => {
+                        // Function to check if element is visible
+                        const isVisible = (el) => {
+                            const style = window.getComputedStyle(el);
+                            return style.display !== 'none' && 
+                                   style.visibility !== 'hidden' && 
+                                   style.opacity !== '0' &&
+                                   el.offsetParent !== null;
                         };
-                        
-                        return await Promise.race([checkForm(), timeout]);
+
+                        // Function to check if element is likely a form
+                        const isLikelyForm = (el) => {
+                            // Must have input fields
+                            const inputs = el.querySelectorAll('input:not([type="submit"]):not([type="hidden"]), select, textarea');
+                            if (inputs.length === 0) return false;
+
+                            // Must have submit button or similar
+                            const hasSubmit = el.querySelector('button[type="submit"], input[type="submit"], button:not([type]), [role="button"], .form-submit-button');
+                            if (!hasSubmit) return false;
+
+                            // Check for form-like attributes
+                            const hasFormAttr = el.hasAttribute('role') && el.getAttribute('role') === 'form' ||
+                                              el.hasAttribute('data-form') ||
+                                              el.hasAttribute('data-wf-form') ||
+                                              el.hasAttribute('data-form-type');
+
+                            // Check for form-like classes
+                            const hasFormClass = el.className.includes('form') ||
+                                                el.className.includes('jotform') ||
+                                                el.className.includes('jf-required') ||
+                                                el.className.includes('page-section') ||
+                                                el.className.includes('form-line') ||
+                                                el.className.includes('gform');
+
+                            // Check for form-like structure
+                            const hasFormStructure = el.querySelector('label') !== null ||
+                                                   el.querySelector('fieldset') !== null ||
+                                                   el.querySelector('legend') !== null;
+
+                            return (hasFormAttr || hasFormClass || hasFormStructure) && isVisible(el);
+                        };
+
+                        // Get all potential form containers
+                        const containers = Array.from(document.querySelectorAll('div, section, article, ul, form'));
+
+                        return containers.filter(isLikelyForm).map(el => ({
+                            tagName: el.tagName,
+                            className: el.className,
+                            id: el.id,
+                            hasInputs: el.querySelectorAll('input, select, textarea').length,
+                            hasSubmit: !!el.querySelector('button[type="submit"], input[type="submit"]'),
+                            isVisible: isVisible(el)
+                        }));
                     }
                 """)
-                
-                if has_form:
-                    print("[✓] Found form container")
-                    return True
-            except Exception as e:
-                if str(e) != 'timeout':
-                    print(f"[!] Error in form container check: {str(e)}")
 
-            # Strategy 3: Quick check for iframe forms
+                if form_containers and len(form_containers) > 0:
+                    # Log the found containers for debugging
+                    print(f"[ℹ️] Found {len(form_containers)} potential form containers")
+                    for container in form_containers:
+                        print(f"[ℹ️] Container: {container['tagName']} (class: {container['className']}, id: {container['id']})")
+                        print(f"[ℹ️] Has {container['hasInputs']} inputs, submit: {container['hasSubmit']}, visible: {container['isVisible']}")
+                    
+                    # Verify at least one container is a valid form
+                    valid_containers = [c for c in form_containers if c['hasInputs'] > 0 and c['hasSubmit'] and c['isVisible']]
+                    if valid_containers:
+                        print("[✓] Found valid form-like structure")
+                        return True
+
+            except Exception as e:
+                print(f"[!] Error in form-like structure detection: {str(e)}")
+
+            # Strategy 3: Check for iframe forms
             try:
                 iframes = await page.query_selector_all('iframe')
                 for iframe in iframes:
@@ -645,22 +721,22 @@ class DynamicWeb:
                         if frame:
                             form_elements = await frame.query_selector_all('form')
                             if form_elements:
-                                print("[✓] Found form in iframe")
-                                return True
+                                for form in form_elements:
+                                    if await form.is_visible():
+                                        inputs = await form.query_selector_all('''
+                                            input:not([type="submit"]):not([type="hidden"]),
+                                            select,
+                                            textarea
+                                        ''')
+                                        if inputs and len(inputs) > 0:
+                                            print("[✓] Found valid form in iframe")
+                                            return True
                     except Exception:
                         continue
             except Exception:
                 pass
 
-            # Strategy 4: Final check for dynamic forms with short timeout
-            try:
-                await page.wait_for_selector('form', timeout=2000)
-                print("[✓] Found dynamically loaded form")
-                return True
-            except Exception:
-                pass
-
-            print("[!] No form elements found")
+            print("[!] No valid form elements found")
             return False
 
         except Exception as e:
@@ -671,42 +747,46 @@ class DynamicWeb:
         """Process a single page for form filling."""
         try:
             print(f"\n[🌐] Processing URL: {url}")
-            
+            # import pdb;pdb.set_trace()
             # Navigate to the page
             await page.goto(url, wait_until="networkidle")
             print("[✓] Page loaded successfully")
             
-            # Check for CAPTCHA
+            # return True if solvable captcha found , otherwise false
             captcha_present = await self.check_for_captcha(page)
-            if captcha_present:
-                print("[!] CAPTCHA found on page")
-                return False
+            if not captcha_present:
+                print("[!]No solvable Captcha Found")
+                
             
             # First try to find and fill form on current page
             form_found = await self.find_form_elements(page)
             if form_found:
                 print("[✓] Form found on current page")
                 # Fill the form
-                success = await self.fill_form(page)
+                success, parent_div = await self.fill_form(page)
                 if not success:
                     print("[!] Failed to fill form")
                     return False
             else:
                 print("[!] No form found on current page, looking for form button...")
                 # Try to find and click a button that might lead to a form
-                success = await self.find_and_click_form_button(page)
+                success = await self.find_button(page)
                 if not success:
-                    print("[!] Could not find or access form")
+                    print("[!] Could not find button that lead to form")
                     return False
+                
+                form_found = await self.find_form_elements(page)
+                if form_found:
+                    # Fill the form on the new page
+                    success, parent_div = await self.fill_form(page)
                     
-                # Fill the form on the new page
-                success = await self.fill_form(page)
-                if not success:
-                    print("[!] Failed to fill form")
-                    return False
+                    if not success:
+                        print("[!] Failed to fill form")
+                        return False
+                    
             
             # Submit the form
-            success = await self.submit_form('input[type="submit"]', page)
+            success = await self.submit_form('input[type="submit"]', page, parent_div)
             if not success:
                 print("[!] Form submission failed or could not be verified")
                 return False
@@ -718,7 +798,7 @@ class DynamicWeb:
             print(f"[!] Error processing URL {url}: {str(e)}")
             return False
 
-    async def submit_form(self, selector: str, page) -> bool:
+    async def submit_form(self, selector: str, page, parent_div=None) -> bool:
         """Submit the form and verify the submission."""
         try:
             print("[🔍] Monitoring Form Submission")
@@ -751,7 +831,17 @@ class DynamicWeb:
             submit_button = None
             for sel in submit_selectors:
                 try:
-                    button = page.locator(sel)
+                    # If we have a parent div, scope the search to it
+                    if parent_div and parent_div.get('id'):
+                        button = page.locator(f"#{parent_div['id']} {sel}")
+                    elif parent_div and parent_div.get('className'):
+                        # Handle multiple classes
+                        classes = parent_div['className'].split()
+                        class_selector = '.'.join(classes)
+                        button = page.locator(f".{class_selector} {sel}")
+                    else:
+                        button = page.locator(sel)
+
                     if await button.count() > 0:
                         # Check if any instance of this button is visible
                         is_visible = await button.evaluate_all("""
@@ -772,33 +862,9 @@ class DynamicWeb:
                     continue
             
             if not submit_button:
-                print("[!] No visible submit button found, trying to find form and submit it")
-                # Try to find the form and submit it directly
-                forms = await page.query_selector_all('form')
-                if forms:
-                    for form in forms:
-                        try:
-                            # Check if form is visible
-                            is_visible = await form.evaluate("""
-                                (form) => {
-                                    const style = window.getComputedStyle(form);
-                                    return style.display !== 'none' && 
-                                           style.visibility !== 'hidden' && 
-                                           style.opacity !== '0' &&
-                                           form.offsetParent !== null;
-                                }
-                            """)
-                            
-                            if is_visible:
-                                print("[✓] Found visible form, submitting directly")
-                                await form.evaluate('form => form.submit()')
-                                return True
-                        except Exception:
-                            continue
-                
-                print("[!] Could not find any submit button or form to submit")
+                print("[!] No visible submit button found in the form div")
                 return False
-            
+
             # Get the form method and check if it's using JavaScript
             form_info = await page.evaluate("""
                 (selector) => {
@@ -843,6 +909,7 @@ class DynamicWeb:
                         indicators['url_change'] = 0.5
                         print("[✓] URL changed")
 
+                # Scope message selectors to parent div if available
                 message_selectors = [
                     '.form-message-success', '.w-form-done',
                     '[class*="success"]', '[class*="thank"]',
@@ -854,7 +921,16 @@ class DynamicWeb:
 
                 for selector in message_selectors:
                     try:
-                        element = page.locator(selector)
+                        # Scope the message search to parent div if available
+                        if parent_div and parent_div.get('id'):
+                            element = page.locator(f"#{parent_div['id']} {selector}")
+                        elif parent_div and parent_div.get('className'):
+                            classes = parent_div['className'].split()
+                            class_selector = '.'.join(classes)
+                            element = page.locator(f".{class_selector} {selector}")
+                        else:
+                            element = page.locator(selector)
+
                         if await element.count() > 0 and await element.is_visible():
                             text = await element.text_content()
                             if any(word in text.lower() for word in ['thank', 'success']):
@@ -940,30 +1016,6 @@ class DynamicWeb:
         except Exception as e:
             print(f"[!] Error during form submission: {str(e)}")
             return False
-
-    async def run(self, urls: List[str]):
-        """Run the form filling process for a list of URLs."""
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
-            context = await browser.new_context()
-            page = await context.new_page()
-            
-            for url in urls:
-                try:
-                    print(f"\n[🌐] Navigating to {url}")
-                    # Navigate to the page first
-                    await page.goto(url, wait_until="networkidle")
-                    # Then process the page
-                    success = await self.process_page(page, url)
-                    if not success:
-                        print(f"[!] Failed to process {url}")
-                        continue
-                        
-                except Exception as e:
-                    print(f"[!] Error processing {url}: {str(e)}")
-                    continue
-                    
-            await browser.close()
 
 
             
