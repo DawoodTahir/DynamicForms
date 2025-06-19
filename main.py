@@ -1,9 +1,11 @@
 import numpy as np
 import asyncio
+import os
 from utils import DynamicWeb
 from playwright.async_api import async_playwright
 
-
+api_key=os.environ.get("OPENAI_API_KEY")
+cap_key=os.environ.get("CAP_API")
 async def run():
     file ='file_A.xlsx'
 
@@ -12,7 +14,7 @@ async def run():
         context = await browser.new_context()
         page = await context.new_page()
         ##crearte an instance of our class DynamicWeb
-        pipe=DynamicWeb()
+        pipe = DynamicWeb(api_key,cap_key)
         urls=pipe.ingestion(file)
         # for url in urls:
         url="https://www.stonecreekcontractors.com/"
@@ -51,12 +53,7 @@ async def run():
                 #             document.querySelector("textarea[name='g-recaptcha-response']").value = "{solver}";
                 #         ''')
                 #         break
-                # else:
-                #     print("No CAPTCHA found on page")
                 
-                # # Submit form and verify submission using sentiment analyzer
-                # if await pipe.submit_form('input[type="submit"]', page):
-                #     print("[🚀] Form submitted successfully!")
                 # else:
                 #     print("[!] Form submission failed or could not be verified")
                 #     pass

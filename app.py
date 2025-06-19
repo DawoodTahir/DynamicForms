@@ -7,6 +7,8 @@ from utils import DynamicWeb,Agent
 app = Quart(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+api_key=os.environ.get("OPENAI_API_KEY")
+cap_key=os.environ.get("CAP_API")
 
 @app.route('/', methods=['GET'])
 async def home():
@@ -29,70 +31,15 @@ async def run_playwright(url):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
-        agent = Agent('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', role="email_orchestrator", system_prompt="You are an email generator for our business , that takes email and contact name to return subject and email content and send it")
+        agent = Agent(api_key, role="email_orchestrator", system_prompt="You are an email generator for our business , that takes email and contact name to return subject and email content and send it")
         page = await context.new_page()
 
-        pipe = DynamicWeb()
+        pipe = DynamicWeb(api_key,cap_key)
 
         try:
             print(f"[🌐] Navigating to {url}")
             await page.goto(url)
             await page.wait_for_load_state("networkidle")
-
-            # # First check for "protected by CAPTCHA" messages
-            # captcha_message_selectors = [
-            #     'text="protected by CAPTCHA"',
-            #     'text="protected by reCAPTCHA"',
-            #     'text="protected by captcha"',
-            #     '[class*="captcha-protected"]',
-            #     '[id*="captcha-protected"]'
-            # ]
-
-            # for selector in captcha_message_selectors:
-            #     try:
-            #         if await page.locator(selector).count() > 0:
-            #             print(f"[!] Site is protected by CAPTCHA: {selector}")
-            #             return {"status": "error", "message": "Site is protected by CAPTCHA and cannot be automated"}
-            #     except Exception:
-            #         continue
-
-            # # CAPTCHA detection
-            # captcha_selectors = [
-            #     'iframe[title="reCAPTCHA"]',
-            #     'iframe[src*="recaptcha"]',
-            #     '.g-recaptcha',
-            #     'iframe[title*="recaptcha"]'
-            # ]
-
-            # for selector in captcha_selectors:
-            #     try:
-            #         if await page.locator(selector).count() > 0:
-            #             print(f"[🤖] reCAPTCHA detected: {selector}")
-                        
-            #             # Get site key using the existing method
-            #             site_key = await pipe.site_key(url)
-            #             if not site_key:
-            #                 print("[!] Could not find site key")
-            #                 continue
-
-            #             print(f"[🔑] Found site key: {site_key}")
-                        
-            #             # Solve CAPTCHA
-            #             solver = pipe.Captcha_solver(site_key, url)
-            #             if not solver:
-            #                 print("[!] Failed to solve CAPTCHA")
-            #                 continue
-
-            #             # Set the response
-            #             await page.evaluate(f'''
-            #                 document.querySelector("textarea[name='g-recaptcha-response']").style.display = 'block';
-            #                 document.querySelector("textarea[name='g-recaptcha-response']").value = "{solver}";
-            #             ''')
-            #             print("[✓] CAPTCHA response set")
-            #             break
-            #     except Exception as e:
-            #         print(f"[!] Error handling reCAPTCHA: {str(e)}")
-            #         continue
 
             # Process the page after CAPTCHA handling
             result= await pipe.process_page(page, url)
@@ -104,7 +51,7 @@ async def run_playwright(url):
                 agent=agent,
                 gmail_creds='12345'
                 )
-                return {"status": "error", "message": "Form submission failed and client was notified."}
+                return {"status": "error", "message": "Couldn't Resolve Form, Hence Sent Email instead."}
             else:
                 return {"status": "success", "message": "Form submitted"}
 
@@ -115,4 +62,4 @@ async def run_playwright(url):
             await browser.close()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)

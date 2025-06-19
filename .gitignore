@@ -1,0 +1,4 @@
+uploads/
+app/readability_bundle.js
+app/readability_wrapper.js
+.env

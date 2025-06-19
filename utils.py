@@ -166,36 +166,6 @@ class SentimentAnalyzer:
         self.api_key = api_key
         self.agent =Agent(api_key,role="binary Selector",system_prompt="respond either by 'SUCESS' or 'FAILURE' by deciding if the text is error or acceptance message")
         openai.api_key = api_key
-        self.success_patterns = [
-            r'thank you',
-            r'thanks',
-            r'success',
-            r'successfully',
-            r'received',
-            r'submitted',
-            r'we\'ll contact you',
-            r'we will contact you',
-            r'confirmation',
-            r'your message has been sent',
-            r'form submitted',
-            r'we\'ve received',
-            r'we have received'
-        ]
-        
-        self.error_patterns = [
-            r'error',
-            r'failed',
-            r'invalid',
-            r'incorrect',
-            r'required',
-            r'missing',
-            r'please try again',
-            r'could not submit',
-            r'failed to submit',
-            r'please check',
-            r'please enter',
-            r'please provide'
-        ]
 
     async def analyze_text(self, text: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -289,14 +259,14 @@ class FormFieldMapper:
         return any(re.search(pattern, text, re.IGNORECASE) for pattern in self.form_button_patterns)
 
 class DynamicWeb:
-    def __init__(self):
+    def __init__(self,cap_api,api_key):
         self.sitekey = None
         self.data = None
         self.web = None
-        self.Cap_API = "CAP-C923AE479F371BD716FEB2D7874F9923874EA93B7FB0F2D389FD4321E2405246"
-        self.form_analyzer = FormAnalyzer("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")
+        self.Cap_API = cap_api
+        self.form_analyzer = FormAnalyzer(api_key)
         self.field_mapper = FormFieldMapper()
-        self.sentiment_analyzer = SentimentAnalyzer("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")
+        self.sentiment_analyzer = SentimentAnalyzer(api_key)
 
     def ingestion(self, file):
         try:
@@ -745,32 +715,6 @@ class DynamicWeb:
             except Exception as e:
                 print(f"[!] Error in form-like structure detection: {str(e)}")
 
-            # # Strategy 3: Check for iframe forms
-            # try:
-            #     iframes = await page.query_selector_all('iframe')
-            #     for iframe in iframes:
-            #         try:
-            #             frame = await iframe.content_frame()
-            #             if frame:
-            #                 form_elements = await frame.query_selector_all('form')
-            #                 if form_elements:
-            #                     for form in form_elements:
-            #                         if await form.is_visible():
-            #                             inputs = await form.query_selector_all('''
-            #                                 input:not([type="submit"]):not([type="hidden"]),
-            #                                 select,
-            #                                 textarea
-            #                             ''')
-            #                             if inputs and len(inputs) > 0:
-            #                                 print("[✓] Found valid form in iframe")
-            #                                 return True
-            #         except Exception:
-            #             continue
-            # except Exception:
-            #     pass
-
-            # print("[!] No valid form elements found")
-            # return False
 
         except Exception as e:
             print(f"[!] Error finding form elements: {str(e)}")
@@ -810,7 +754,6 @@ class DynamicWeb:
                     return False
                 
                 form_found = await self.find_form_elements(page)
-                import pdb;pdb.set_trace()
                 try:
                     if form_found:
                         # Fill the form on the new page
@@ -824,7 +767,7 @@ class DynamicWeb:
                     print(f"none found{str(e)}")
             
             # Submit the form
-            success = await self.submit_form('input[type="submit"]', page, form_found)
+            success = await self.submit_form('input[type="submit"]',url, page, form_found)
             if not success:
                 print("[!] Form submission failed or could not be verified")
                 return False
@@ -836,7 +779,7 @@ class DynamicWeb:
             print(f"[!] Error processing URL {url}: {str(e)}")
             return False
 
-    async def submit_form(self, selector: str, page, identifier, parent_div=None) -> bool:
+    async def submit_form(self, selector: str,url, page, identifier, parent_div=None) -> bool:
         """Submit the form and verify the submission.
             Will  add parent div button check case later on"""
         try:
@@ -992,6 +935,64 @@ class DynamicWeb:
                 )
                 print(f"[📊] Final submission probability: {final_prob:.2f}")
                 return final_prob >= 0.5
+
+
+            ##If there is a solvable captcha , solve it
+            # First check for "protected by CAPTCHA" messages
+            captcha_message_selectors = [
+                'text="protected by CAPTCHA"',
+                'text="protected by reCAPTCHA"',
+                'text="protected by captcha"',
+                '[class*="captcha-protected"]',
+                '[id*="captcha-protected"]'
+            ]
+
+            for selector in captcha_message_selectors:
+                try:
+                    if await page.locator(selector).count() > 0:
+                        print(f"[!] Site is protected by CAPTCHA: {selector}")
+                        return {"status": "error", "message": "Site is protected by CAPTCHA and cannot be automated"}
+                except Exception:
+                    continue
+
+            # CAPTCHA detection
+            captcha_selectors = [
+                'iframe[title="reCAPTCHA"]',
+                'iframe[src*="recaptcha"]',
+                '.g-recaptcha',
+                'iframe[title*="recaptcha"]'
+            ]
+
+            for selector in captcha_selectors:
+                try:
+                    if await page.locator(selector).count() > 0:
+                        print(f"[🤖] reCAPTCHA detected: {selector}")
+                        
+                        # Get site key using the existing method
+                        site_key = await self.site_key(url)
+                        if not site_key:
+                            print("[!] Could not find site key")
+                            continue
+
+                        print(f"[🔑] Found site key: {site_key}")
+                        
+                        # Solve CAPTCHA
+                        solver = self.Captcha_solver(site_key, url)
+                        if not solver:
+                            print("[!] Failed to solve CAPTCHA")
+                            continue
+
+                        # Set the response
+                        await page.evaluate(f'''
+                            document.querySelector("textarea[name='g-recaptcha-response']").style.display = 'block';
+                            document.querySelector("textarea[name='g-recaptcha-response']").value = "{solver}";
+                        ''')
+                        print("[✓] CAPTCHA response set")
+                        break
+
+                except Exception as e:
+                    print(f"[!] Error handling reCAPTCHA: {str(e)}")
+                    continue
 
             # === Submit the form ===
             expecter = page.expect_response(lambda response: (
