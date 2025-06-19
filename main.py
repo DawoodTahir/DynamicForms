@@ -15,7 +15,7 @@ async def run():
         pipe=DynamicWeb()
         urls=pipe.ingestion(file)
         # for url in urls:
-        url="https://www.onecallroofing.com/"
+        url="https://www.stonecreekcontractors.com/"
         try:
                 print(f"[🌐] Navigating to {url}")
                 await page.goto(url)
