@@ -43,7 +43,11 @@ async def run_playwright(url, user_data=None):
                 '--ignore-certificate-errors-spki-list',
                 '--ignore-ssl-errors-spki-list',
                 '--disable-web-security',
-                '--disable-features=VizDisplayCompositor'
+                '--disable-features=VizDisplayCompositor',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--single-process'
             ]
         )
         context = await browser.new_context(ignore_https_errors=True)
@@ -68,4 +72,5 @@ async def run_playwright(url, user_data=None):
             await browser.close()
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5001)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
