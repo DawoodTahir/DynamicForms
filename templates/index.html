@@ -2,98 +2,803 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Web Form Bot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Bot - Professional Web Form Automation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            padding: 40px;
-            background: #f4f4f4;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
         }
-        h2 {
-            color: #444;
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
         }
-        form {
-            margin-bottom: 20px;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-        }
-        input[type="text"], input[type="file"] {
-            padding: 10px;
-            margin-bottom: 10px;
-            width: 100%;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-        }
-        button {
-            padding: 10px 15px;
-            background-color: #4CAF50;
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
             color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
         }
-        #logs {
-            background: #222;
-            color: #0f0;
-            padding: 15px;
-            border-radius: 10px;
-            height: 300px;
-            overflow-y: scroll;
-            font-family: monospace;
-            font-size: 14px;
+
+        .header h1 {
+            font-size: 4rem;
+            font-weight: 900;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-transform: uppercase;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            animation: titleGlow 3s ease-in-out infinite alternate;
+            position: relative;
+        }
+
+        @keyframes titleGlow {
+            0% {
+                filter: drop-shadow(0 0 5px rgba(255,255,255,0.3));
+            }
+            100% {
+                filter: drop-shadow(0 0 15px rgba(255,255,255,0.6));
+            }
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            font-weight: 300;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        .logs-section {
+            grid-column: span 2; /* Span full width under both cards */
+            width: 100%;
+            margin-top: 0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+            position: relative;
+        }
+
+        .card-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+        }
+
+        .card-header h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .card-header p {
+            font-size: 0.95rem;
+            opacity: 0.9;
+            font-weight: 300;
+            position: relative;
+            z-index: 1;
+        }
+
+        .card-body {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+            font-size: 0.95rem;
+        }
+
+        .required {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 15px 18px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-control::placeholder {
+            color: #9ca3af;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: 2px solid #e5e7eb;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .logs-section {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .logs-header {
+            background: #1f2937;
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logs-header h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .logs-content {
+            padding: 30px;
+            height: 500px;
+            overflow-y: auto;
+            background: #0f172a;
+            color: #10b981;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            border-radius: 0 0 20px 20px;
+        }
+
+        .logs-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .logs-content::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        .logs-content::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        .logs-content::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .status-success {
+            background: #10b981;
+        }
+
+        .status-error {
+            background: #ef4444;
+        }
+
+        .status-info {
+            background: #3b82f6;
+        }
+
+        .status-warning {
+            background: #f59e0b;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 15px;
+            }
+
+            .header h1 {
+                font-size: 2.5rem;
+            }
+
+            .field-row {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .card-body {
+                padding: 20px;
+            }
+
+            .logs-content {
+                height: 400px;
+                font-size: 0.8rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .card-header {
+                padding: 20px;
+            }
+
+            .card-body {
+                padding: 15px;
+            }
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Checkbox Styles */
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+            gap: 12px;
+        }
+
+        .checkbox-input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+
+        .checkmark {
+            height: 20px;
+            width: 20px;
+            background-color: #f3f4f6;
+            border: 2px solid #d1d5db;
+            border-radius: 4px;
+            margin-right: 12px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-label:hover .checkmark {
+            background-color: #e5e7eb;
+            border-color: #9ca3af;
+        }
+
+        .checkbox-input:checked ~ .checkmark {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+
+        .checkbox-input:checked ~ .checkmark:after {
+            content: '';
+            position: absolute;
+            left: 6px;
+            top: 2px;
+            width: 6px;
+            height: 10px;
+            border: solid black;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .checkbox-description {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 4px;
+            margin-left: 32px;
+        }
+
+        .user-fields {
+            transition: all 0.3s ease;
+        }
+
+        .user-fields.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .user-fields.disabled .form-control {
+            background-color: #f9fafb;
+            color: #9ca3af;
         }
     </style>
 </head>
 <body>
-    <h2>🧠 Form Bot Dashboard</h2>
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header">
+            <h1>Form Bot</h1>
+            <p>Professional Web Form Automation Platform</p>
+        </header>
 
-    <!-- URL Process Form -->
-    <form id="process-form">
-        <label>Enter URL to process:</label>
-        <input type="text" id="url-input" placeholder="https://example.com">
-        <button type="submit">Process URL</button>
-    </form>
+        <!-- Main Content Grid -->
+        <div class="main-content">
+            <!-- URL Processing Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>🌐 Target Website</h2>
+                    <p>Enter the website URL you want to process</p>
+                </div>
+                <div class="card-body">
+                    <form id="process-form">
+                        <div class="form-group">
+                            <label for="url-input">
+                                Website URL <span class="required">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                id="url-input" 
+                                class="form-control"
+                                placeholder="https://example.com/contact" 
+                                required
+                            >
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            🚀 Process Form
+                        </button>
+                    </form>
+                </div>
+            </div>
 
-    <!-- Logs -->
-    <h3>📋 Logs:</h3>
-    <div id="logs"></div>
+            <!-- Contact Information Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>👤 Contact Information</h2>
+                    <p>Your details for form automation</p>
+                </div>
+                <div class="card-body">
+                    <form id="user-data-form">
+                        <!-- Default Values Checkbox -->
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="use-default-values" class="checkbox-input">
+                                <span class="checkmark"></span>
+                                Use default field values
+                            </label>
+                            <p class="checkbox-description">When checked, the system will use predefined default values for all fields</p>
+                        </div>
+
+                        <div id="user-fields" class="user-fields">
+                            <div class="field-row">
+                                <div class="form-group">
+                                    <label for="first-name">
+                                        First Name <span class="required">*</span>
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        id="first-name" 
+                                        class="form-control"
+                                        placeholder="John" 
+                                        required
+                                    >
+                                </div>
+                                <div class="form-group">
+                                    <label for="last-name">
+                                        Last Name <span class="required">*</span>
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        id="last-name" 
+                                        class="form-control"
+                                        placeholder="Doe" 
+                                        required
+                                    >
+                                </div>
+                            </div>
+                        
+                        <div class="form-group">
+                            <label for="email">
+                                Email Address <span class="required">*</span>
+                            </label>
+                            <input 
+                                type="email" 
+                                id="email" 
+                                class="form-control"
+                                placeholder="john.doe@example.com" 
+                                required
+                            >
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="phone">
+                                Phone Number <span class="required">*</span>
+                            </label>
+                            <input 
+                                type="tel" 
+                                id="phone" 
+                                class="form-control"
+                                placeholder="+1 (555) 123-4567" 
+                                required
+                            >
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="address">
+                                Street Address <span class="required">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                id="address" 
+                                class="form-control"
+                                placeholder="123 Main Street" 
+                                required
+                            >
+                        </div>
+                        
+                        <div class="field-row">
+                            <div class="form-group">
+                                <label for="city">
+                                    City <span class="required">*</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="city" 
+                                    class="form-control"
+                                    placeholder="New York" 
+                                    required
+                                >
+                            </div>
+                            <div class="form-group">
+                                <label for="state">
+                                    State/Province <span class="required">*</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="state" 
+                                    class="form-control"
+                                    placeholder="NY" 
+                                    required
+                                >
+                            </div>
+                        </div>
+                        
+                        <div class="field-row">
+                            <div class="form-group">
+                                <label for="zip-code">
+                                    ZIP/Postal Code <span class="required">*</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="zip-code" 
+                                    class="form-control"
+                                    placeholder="10001" 
+                                    required
+                                >
+                            </div>
+                            <div class="form-group">
+                                <label for="country">
+                                    Country <span class="required">*</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="country" 
+                                    class="form-control"
+                                    placeholder="United States" 
+                                    required
+                                >
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="message">
+                                Message/Inquiry <span class="required">*</span>
+                            </label>
+                            <textarea 
+                                id="message" 
+                                class="form-control"
+                                placeholder="Please describe your inquiry or request..." 
+                                required
+                                rows="4"
+                            ></textarea>
+                        </div>
+                        
+                        <button type="button" class="btn btn-secondary" onclick="saveUserData()">
+                            💾 Save Data
+                        </button>
+                    </form>
+                            <!-- Loading Indicator -->
+                        <div id="loading" class="loading">
+                            <div class="spinner"></div>
+                            <p>Processing form automation...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Section -->
+        <div class="logs-section">
+            <div class="logs-header">
+                <h3>📋 Processing Logs</h3>
+                <button class="btn btn-danger" onclick="clearLogs()" style="width: auto; padding: 8px 16px; font-size: 0.9rem;">
+                    Clear Logs
+                </button>
+            </div>
+            <div id="logs" class="logs-content"></div>
+        </div>
+
+
 
     <script>
         const logBox = document.getElementById('logs');
+        const loadingDiv = document.getElementById('loading');
 
-        function log(message) {
-            logBox.innerHTML += `[${new Date().toLocaleTimeString()}] ${message}<br>`;
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const statusClass = `status-${type}`;
+            const statusIndicator = `<span class="status-indicator ${statusClass}"></span>`;
+            
+            logBox.innerHTML += `
+                <div>[${timestamp}] ${statusIndicator}${message}</div>
+            `;
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        document.getElementById('upload-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const fileInput = document.getElementById('file-input');
-            const file = fileInput.files[0];
+        function clearLogs() {
+            logBox.innerHTML = '';
+            log("🗑️ Logs cleared", 'info');
+        }
 
-            if (!file) return log("⚠️ No file selected.");
+        function showLoading() {
+            loadingDiv.style.display = 'block';
+        }
 
-            const formData = new FormData();
-            formData.append('file', file);
+        function hideLoading() {
+            loadingDiv.style.display = 'none';
+        }
 
-            log("📤 Uploading file...");
-            const res = await fetch('/upload', {
-                method: 'POST',
-                body: formData
-            });
+        function saveUserData() {
+            const userData = {
+                firstName: document.getElementById('first-name').value,
+                lastName: document.getElementById('last-name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                address: document.getElementById('address').value,
+                city: document.getElementById('city').value,
+                state: document.getElementById('state').value,
+                zipCode: document.getElementById('zip-code').value,
+                country: document.getElementById('country').value,
+                message: document.getElementById('message').value
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('formBotUserData', JSON.stringify(userData));
+            log("💾 User data saved to browser storage", 'success');
+        }
 
-            const result = await res.json();
-            log("📁 Upload Response: " + JSON.stringify(result));
-        });
+        function loadUserData() {
+            const savedData = localStorage.getItem('formBotUserData');
+            if (savedData) {
+                const userData = JSON.parse(savedData);
+                document.getElementById('first-name').value = userData.firstName || '';
+                document.getElementById('last-name').value = userData.lastName || '';
+                document.getElementById('email').value = userData.email || '';
+                document.getElementById('phone').value = userData.phone || '';
+                document.getElementById('address').value = userData.address || '';
+                document.getElementById('city').value = userData.city || '';
+                document.getElementById('state').value = userData.state || '';
+                document.getElementById('zip-code').value = userData.zipCode || '';
+                document.getElementById('country').value = userData.country || '';
+                document.getElementById('message').value = userData.message || '';
+                log("📥 User data loaded from browser storage", 'success');
+            }
+        }
+
+        // Default values will be loaded from JSON file
+        let defaultUserData = {};
+        
+        // Load default values from JSON file
+        async function loadDefaultValues() {
+            try {
+                const response = await fetch('/static/default-values.json');
+                if (response.ok) {
+                    defaultUserData = await response.json();
+                    log("📄 Default values loaded successfully", 'success');
+                } else {
+                    log("⚠️ Failed to load default values, using fallback", 'warning');
+                    // Fallback default values
+                    defaultUserData = {
+                        firstName: 'John',
+                        lastName: 'Doe',
+                        email: 'john.doe@example.com',
+                        phone: '+1 (555) 123-4567',
+                        address: '123 Main Street',
+                        city: 'New York',
+                        state: 'NY',
+                        zipCode: '10001',
+                        country: 'United States',
+                        message: 'Hi, I am interested in your services and would like to get a quote. Please contact me with more information.'
+                    };
+                }
+            } catch (error) {
+                log("❌ Error loading default values: " + error.message, 'error');
+                // Use fallback values
+                defaultUserData = {
+                    firstName: 'John',
+                    lastName: 'Doe',
+                    email: 'john.doe@example.com',
+                    phone: '+1 (555) 123-4567',
+                    address: '123 Main Street',
+                    city: 'New York',
+                    state: 'NY',
+                    zipCode: '10001',
+                    country: 'United States',
+                    message: 'Hi, I am interested in your services and would like to get a quote. Please contact me with more information.'
+                };
+            }
+        }
 
         document.getElementById('process-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const url = document.getElementById('url-input').value;
 
-            if (!url) return log("⚠️ No URL provided.");
+            if (!url) {
+                log("⚠️ No URL provided", 'warning');
+                return;
+            }
 
-            log("🌐 Processing URL: " + url);
+            // Get all user data
+            let userData = {
+                firstName: document.getElementById('first-name').value,
+                lastName: document.getElementById('last-name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                address: document.getElementById('address').value,
+                city: document.getElementById('city').value,
+                state: document.getElementById('state').value,
+                zipCode: document.getElementById('zip-code').value,
+                country: document.getElementById('country').value,
+                message: document.getElementById('message').value
+            };
+
+            // Check if using default values
+            const useDefaultValues = document.getElementById('use-default-values').checked;
+            
+            if (useDefaultValues) {
+                // Use default values instead of user input
+                userData = { ...defaultUserData };
+                log("✅ Using default values for form submission", 'success');
+            } else {
+                // Validate required fields only when not using defaults
+                const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'state', 'zipCode', 'country', 'message'];
+                const missingFields = requiredFields.filter(field => !userData[field]);
+                
+                if (missingFields.length > 0) {
+                    log(`⚠️ Missing required fields: ${missingFields.join(', ')}`, 'warning');
+                    return;
+                }
+            }
+
+            log("🌐 Processing URL: " + url, 'info');
+            log("👤 Using contact data for form filling", 'info');
+            showLoading();
 
             try {
                 const res = await fetch('/process', {
@@ -101,14 +806,54 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify({ 
+                        url: url,
+                        userData: userData
+                    })
                 });
 
                 const result = await res.json();
-                log("✅ Process Result: " + JSON.stringify(result));
+                log("✅ Process Result: " + JSON.stringify(result), 'success');
             } catch (err) {
-                log("❌ Error: " + err.message);
+                log("❌ Error: " + err.message, 'error');
+            } finally {
+                hideLoading();
             }
+        });
+
+        // Handle checkbox functionality
+        document.getElementById('use-default-values').addEventListener('change', function() {
+            const userFields = document.getElementById('user-fields');
+            const isChecked = this.checked;
+            
+            if (isChecked) {
+                userFields.classList.add('disabled');
+                // Fill with default values
+                Object.keys(defaultUserData).forEach(key => {
+                    const element = document.getElementById(key.replace(/([A-Z])/g, '-$1').toLowerCase());
+                    if (element) {
+                        element.value = defaultUserData[key];
+                    }
+                });
+                log("✅ Using default field values", 'success');
+            } else {
+                userFields.classList.remove('disabled');
+                // Clear fields
+                Object.keys(defaultUserData).forEach(key => {
+                    const element = document.getElementById(key.replace(/([A-Z])/g, '-$1').toLowerCase());
+                    if (element) {
+                        element.value = '';
+                    }
+                });
+                log("📝 Manual field entry enabled", 'info');
+            }
+        });
+
+        // Load saved user data and default values when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadDefaultValues();
+            loadUserData();
+            log("🚀 Form Bot Pro Dashboard loaded successfully", 'success');
         });
     </script>
 </body>
