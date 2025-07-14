@@ -3,21 +3,34 @@ import asyncio
 import os
 from utils import DynamicWeb
 from playwright.async_api import async_playwright
+from dotenv import load_dotenv
+
+load_dotenv('.env')  # Load environment variables from .env file in current directory
 
 api_key=os.environ.get("OPENAI_API_KEY")
 cap_key=os.environ.get("CAP_API")
 async def run():
-    file ='file_A.xlsx'
+    file ='uploads/file_A.xlsx'
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                '--ignore-ssl-errors',
+                '--ignore-certificate-errors',
+                '--ignore-certificate-errors-spki-list',
+                '--ignore-ssl-errors-spki-list',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor'
+            ]
+        )
+        context = await browser.new_context(ignore_https_errors=True)
         page = await context.new_page()
         ##crearte an instance of our class DynamicWeb
-        pipe = DynamicWeb(api_key,cap_key)
+        pipe = DynamicWeb(cap_key, api_key)
         urls=pipe.ingestion(file)
         # for url in urls:
-        url="https://www.stonecreekcontractors.com/"
+        url="https://www.arsroofing.net/"
         try:
                 print(f"[🌐] Navigating to {url}")
                 await page.goto(url)
@@ -25,39 +38,7 @@ async def run():
 
                 await pipe.process_page(page, url) ##fill the form right away, or by going to form page and filling up 
 
-                # # --- Handle reCAPTCHA ---
-                # print("[🤖] Waiting for CAPTCHA to load...")
-                # captcha_selectors = [
-                #     'iframe[title="reCAPTCHA"]',
-                #     'iframe[src*="recaptcha"]',
-                #     '.g-recaptcha',
-                #     'iframe[title*="recaptcha"]'
-                # ]
-                
-                # for selector in captcha_selectors:
-                #     if await page.locator(selector).count() > 0:
-                #         print(f"Found CAPTCHA with selector: {selector}")
-                #         captcha = selector
-                #         # Get the main reCAPTCHA iframe
-                #         recaptcha_frame = page.frame_locator(captcha)
-                        
-                #         # Click the checkbox in the main iframe
-                #         await recaptcha_frame.locator('.recaptcha-checkbox-border').click()
-
-                #         site_key = pipe.site_key(url)
-                #         solver = pipe.Captcha_solver(site_key, url)
-                        
-                #         # Put the solved captcha in form 
-                #         await page.evaluate(f'''
-                #             document.querySelector("textarea[name='g-recaptcha-response']").style.display = 'block';
-                #             document.querySelector("textarea[name='g-recaptcha-response']").value = "{solver}";
-                #         ''')
-                #         break
-                
-                # else:
-                #     print("[!] Form submission failed or could not be verified")
-                #     pass
-
+            
         except Exception as e:
             print(f"[!] Error processing URL {url}: {str(e)}")
             return False

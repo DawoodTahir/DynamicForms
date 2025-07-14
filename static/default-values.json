@@ -1,0 +1,12 @@
+{
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john.doe@example.com",
+    "phone": "+1 (555) 123-4567",
+    "address": "123 Main Street",
+    "city": "New York",
+    "state": "NY",
+    "zipCode": "10001",
+    "country": "United States",
+    "message": "Hi, I am interested in your services and would like to get a quote. Please contact me with more information."
+} 
