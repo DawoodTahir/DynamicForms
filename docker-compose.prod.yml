@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  form-bot:
+    build: .
+    ports:
+      - "5001:5000"
+    env_file:
+      - .env
+    environment:
+      - APP_FILE=app.py
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./uploads:/app/uploads
+      - ./static:/app/static
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3" 
